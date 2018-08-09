@@ -82,6 +82,8 @@ void insertSort(vector<int> &arr)
 
 基本思想：一趟排序中将待排序的序列分割成两组，其中一部分记录的关键字均小于另一部分。然后分别对这两组继续进行排序，以使整个序列有序。
 
+递归实现：
+
 ```c++
 // 三数中值分割，并将分割元素与最后元素交换，返回分割元素
 int median3(vector<int>& arr, int left, int right)
@@ -129,6 +131,8 @@ void qSort(vector<int> arr, int left, int right)
 ```
 
 
+
+非递归实现：
 
 ### 归并排序
 
@@ -180,9 +184,13 @@ void heapSort(vector<int>& arr)
 | 插入 | n2    | n     | n2    | 1      | 稳定   |
 | 选择 | n2    | n2    | n2    | 1      | 稳定   |
 | 冒泡 | n2    | n2    | n2    | 1      | 稳定   |
-| 希尔 |       |       |       | 1      | 不稳定 |
+| 希尔 |       | nlogn |       | 1      | 不稳定 |
 | 归并 | nlogn | nlogn | nlogn | n      | 稳定   |
 | 快速 | nlogn | nlogn | n2    | logn   | 不稳定 |
 | 堆   | nlogn | nlogn | nlogn | 1      | 不稳定 |
 |      |       |       |       |        |        |
+
+
+
+# 查找算法
 
