@@ -194,3 +194,123 @@ void heapSort(vector<int>& arr)
 
 # 查找算法
 
+
+
+# 全排列
+
+### 递归
+
+核心思想：**从第一个数字起每个数分别与它后面的数字交换**
+
+去重：**从第一个数字起每个数分别与它后面非重复出现的数字交换。**
+
+```c++
+class Solution {
+public:
+    vector<vector<int>> res;
+    vector<vector<int>> permuteUnique(vector<int>& nums) {
+        def(nums, 0, nums.size());
+        return res;
+    }
+    
+    void def(vector<int> &nums, int begin, int len) {
+        if (begin == len) {
+            vector<int> list(len,0);
+            for (int i = 0; i < len; i++) {
+                list[i] = nums[i];
+            }
+            res.push_back(list);
+            return;
+        }
+        for (int i = begin; i < len; i++) {
+            bool flag = false;
+            for (int j = begin; j < i; j++) {
+                if (nums[j] == nums[i]) {
+                    flag = true;
+                }
+            }
+            if (flag) {
+                continue;
+            }
+            int temp = nums[begin];
+            nums[begin] = nums[i];
+            nums[i] = temp;
+            def(nums, begin+1, len);
+            nums[i] = nums[begin];
+            nums[begin] = temp;
+        }
+    }
+};
+```
+
+
+
+### 非递归
+
+要考虑全排列的非递归实现，先来考虑如何计算字符串的下一个排列。如"1234"的下一个排列就是"1243"。只要对字符串反复求出下一个排列，全排列的也就迎刃而解了。
+
+如何计算字符串的下一个排列了？来考虑"926520"这个字符串，我们从后向前找第一双相邻的递增数字，"20"、"52"都是非递增的，"26 "即满足要求，称前一个数字2为替换数，替换数的下标称为替换点，再从后面找一个比替换数大的最小数（这个数必然存在），0、2都不行，5可以，将5和2交换得到"956220"，然后再将替换点后的字符串"6220"颠倒即得到"950226"。
+
+**由后向前找替换数和替换点，然后由后向前找第一个比替换数大的数与替换数交换，最后颠倒替换点后的所有数据。**
+
+```c++
+class Solution {
+public:
+    
+    vector<vector<int>> permuteUnique(vector<int>& nums) {
+        vector<vector<int>> res;
+        int len = nums.size();
+        if (len == 0) {
+            return res;
+        }
+        sort(nums.begin(), nums.end());
+        do {
+            vector<int> list(len, 0);
+            for (int i = 0; i < len; i++) {
+                list[i] = nums[i];
+            }
+            res.push_back(list);
+        }while(nextPermutation(nums, len));
+        return res;
+    }
+    
+    void swapStr(vector<int> &s, int i, int j) {
+        int tmp = s[i];
+        s[i] = s[j];
+        s[j] = tmp;
+    }
+    
+    void reverse(vector<int> &s,int from, int to) {
+        while(from < to) {
+            int tmp = s[from];
+            s[from]= s[to];
+            s[to] = tmp;
+            from ++;
+            to --;
+        }
+    }
+    
+    bool nextPermutation(vector<int> &s, int n) {
+        int i, j, find;
+        i = n-1;
+        while (i != 0)
+        {
+            j = i;
+            --i;
+            if (s[i] < s[j])
+            {
+                find = n-1;
+                while (s[find] <= s[i])
+                    --find;
+                swapStr(s, find, i);
+                reverse(s, j, n-1);
+                return true;
+            }
+        }
+        reverse(s, i, n-1);
+        return false;
+    }
+
+};
+```
+
