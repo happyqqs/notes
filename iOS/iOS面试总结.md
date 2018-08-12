@@ -22,11 +22,17 @@ Objective-C 可以通过Runtime 这个运行时机制，在运行时动态的添
 
 实质：实例变量+存取方法
 
-组成部分：
+组成部分：原子性+读写权限+内存管理语义+方法名
 
 默认关键字：atomic、strong、readwrite
 
+@dynamic：告诉编译器不要自动创建实现属性所需的实例变量和存取方法，运行期可以找到
 
+@synthesize：指定实例变量的名字
+
+在对象内部尽量直接访问实例变量，初始化方法中应该总是直接访问实例变量
+
+因为，子类有可能会覆写set方法，在特殊的场景下抛异常，而基类的默认初始化方法可能会设置成比较通用的值，这是如果用set方法来设值就会调用子类的设置方法而抛出异常
 
 5、属性的默认关键字是什么？
 
@@ -66,15 +72,26 @@ copy返回不可变对象，mutablecopy返回可变对象
 
 10、nonatomic和atomic的区别？atomic是绝对的线程安全么？为什么？如果不是，那应该如何实现？
 
-	* nonatomic: 非原子性 
-
+ * nonatomic：非原子性
  * atomic：原子性，相当于@synchronized （该属性）只是对该属性的读写的原子性，不是绝对的线程安全，比如对集合类对象的操作。atomic要比nonatomic慢大约20倍
 
-实现线程安全：加锁
+实现线程安全：加锁  https://bestswifter.com/ios-lock/
 
+性能由高到低：
 
+* OSSpinLock：自旋锁，低优先级线程拿到锁时，高优先级线程进入忙等状态，消耗大量 CPU 时间，从而导致低优先级线程拿不到 CPU 时间，也就无法完成任务并释放锁。这种问题被称为优先级反转。适合临界区执行时间比较短情况
+* dispatch_semaphore：锁的粒度更大，得不到锁时线程阻塞进入睡眠状态
+* pthread_mutes：互斥锁，和信号量的实现原理类似，多种类型，可以支持递归锁等，因此在申请加锁时，需要对锁的类型加以判断，这也就是为什么它和信号量的实现类似，但效率略低的原因。
+* NSLock：在内部封装了一个 `pthread_mutex`，属性为 `PTHREAD_MUTEX_ERRORCHECK`，它会损失一定性能换来错误提示。而且会经过OC的方法调用，有微弱的性能损失(方法缓存)
+* NSCondition：通过条件变量(condition variable) `pthread_cond_t` 来实现的。条件变量有点像信号量，提供了线程阻塞与信号机制，因此可以用来阻塞某个线程，并等待某个数据就绪，随后唤醒线程，比如常见的生产者-消费者模式。在等待某个条件达成时自身要进行睡眠或阻塞，避免忙等待带来的不必要消耗。`NSCondition` 其实是封装了一个互斥锁和条件变量， 它把前者的 `lock` 方法和后者的 `wait/signal` 统一在 `NSCondition` 对象中，暴露给使用者。它的加解锁过程与 `NSLock` 几乎一致，理论上来说耗时也应该一样(实际测试也是如此)。在图中显示它耗时略长，我猜测有可能是测试者在每次加解锁的前后还附带了变量的初始化和销毁操作。
+* pthread_mutes（recursive）
+* NSRecursiveLock：内部封装的 `pthread_mutex_t` 对象，类型为 `PTHREAD_MUTEX_RECURSIVE`。
+* NSConditionLock：`NSConditionLock` 借助 `NSCondition` 来实现，它的本质就是一个生产者-消费者模型。“条件被满足”可以理解为生产者提供了新的内容。`NSConditionLock` 的内部持有一个 `NSCondition` 对象，以及 `_condition_value` 属性，在初始化时就会对这个属性进行赋值
+* @synchronized：后面需要紧跟一个 OC 对象，它实际上是把这个对象当做锁来使用。这是通过一个哈希表来实现的，OC 在底层使用了一个互斥锁的数组(你可以理解为锁池)，通过对对象去哈希值来得到对应的互斥锁
 
 11、UICollectionView自定义layout如何实现？
+
+
 
 12、用StoryBoard开发界面有什么弊端？如何避免？
 
@@ -84,11 +101,138 @@ copy返回不可变对象，mutablecopy返回可变对象
 
 13、进程和线程的区别？同步异步的区别？并行和并发的区别？
 
+进程
+
+* 资源（CPU、内存等）分配的基本单位，有自己独立的地址空间，每启动一个进程，系统就会为它分配地址空间，建立数据表来维护代码段、堆栈段和数据段
+* 多进程更健壮，一个进程挂掉不会影响其他的进程
+
+线程
+
+* 调度的基本单位，对应一个任务，更轻量，易创建和撤销，线程间难同步，同一进程内资源共享
+* 多线程程序只要有一个线程挂掉，那么整个进程也会挂掉
+
+同步
+
+* 没有得到结果之前，调用不返回
+
+异步
+
+* 立即返回，通知或回调结果
+
+并行
+
+* 两个或者多个事件在同一时刻发生
+
+并发
+
+* 伪并行，两个或多个事件在同一时间间隔发生
+
 14、线程间通信？
+
+- 1个线程传递数据给另1个线程
+- 在1个线程中执行完特定任务后，转到另1个线程继续执行任务
+
+（1）NSThread
+
+```objective-c
+// 回到主线程执行
+[self performSelectorOnMainThread:@selector(showImage:) withObject:image waitUntilDone:YES];
+// 回到XX线程执行
+- (void)performSelector:(SEL)aSelector onThread:(NSThread *)thr withObject:(id)arg waitUntilDone:(BOOL)wait;
+// waitUntilDone的含义:
+// 如果传入的是YES: 那么会等到主线程中的方法执行完毕, 才会继续执行下面其他行的代码
+// 如果传入的是NO: 那么不用等到主线程中的方法执行完毕, 就可以继续执行下面其他行的低吗
+```
+
+（2） GCD
+
+（3）NSOperation
+
+第一种方法：创建一个新的队列，在新的队列添加任务，任务中去其他队列
+
+```objective-c
+
+    NSOperationQueue *queue = [[NSOperationQueue alloc] init];
+    [queue addOperationWithBlock:^{
+        NSURL *url  = [NSURL URLWithString:@"http://imgcache.mysodao.com/img2/M04/8C/74/CgAPDk9dyjvS1AanAAJPpRypnFA573_700x0x1.JPG"];
+        NSData *data = [NSData dataWithContentsOfURL:url];
+        UIImage *image = [UIImage imageWithData:data];
+
+        [[NSOperationQueue mainQueue] addOperationWithBlock:^{
+            self.imageView.image = image;
+        }];
+    }];
+```
+
+第二种方法：添加依赖
+
+```objective-c
+	NSOperationQueue *queue = [[NSOperationQueue alloc] init];
+
+    // 2.添加一个操作下载第一张图片
+    __block UIImage *image1 = nil;
+    NSBlockOperation *op1 = [NSBlockOperation blockOperationWithBlock:^{
+        NSURL *url  = [NSURL URLWithString:@"http://imgcache.mysodao.com/img2/M04/8C/74/CgAPDk9dyjvS1AanAAJPpRypnFA573_700x0x1.JPG"];
+        NSData *data = [NSData dataWithContentsOfURL:url];
+        image1 = [UIImage imageWithData:data];
+    }];
+
+    // 3.添加一个操作下载第二张图片
+    __block UIImage *image2 = nil;
+     NSBlockOperation *op2 = [NSBlockOperation blockOperationWithBlock:^{
+        NSURL *url  = [NSURL URLWithString:@"http://imgcache.mysodao.com/img1/M02/EE/B5/CgAPDE-kEtqjE8CWAAg9m-Zz4qo025-22365300.JPG"];
+        NSData *data = [NSData dataWithContentsOfURL:url];
+        image2 = [UIImage imageWithData:data];
+    }];
+    // 4.添加一个操作合成图片
+    NSBlockOperation *op3 = [NSBlockOperation blockOperationWithBlock:^{
+        UIGraphicsBeginImageContext(CGSizeMake(200, 200));
+        [image1 drawInRect:CGRectMake(0, 0, 100, 200)];
+        [image2 drawInRect:CGRectMake(100, 0, 100, 200)];
+        UIImage *res = UIGraphicsGetImageFromCurrentImageContext();
+        UIGraphicsEndImageContext();
+
+        // 5.回到主线程更新UI
+        [[NSOperationQueue mainQueue] addOperationWithBlock:^{
+            self.imageView.image = res;
+        }];
+    }];
+
+    // 6.添加依赖
+
+    [op3 addDependency:op1];
+    [op3 addDependency:op2];
+
+    // 7.添加操作到队列中
+    [queue addOperation:op1];
+    [queue addOperation:op2];
+    [queue addOperation:op3];
+```
+
+
 
 15、GCD的一些常用的函数？（group，barrier，信号量，线程同步）
 
+Serial Dispatch Queue：串行队列，使用一个线程，等待现在执行中的任务处理结束才会继续处理下一个任务
+
+Concurrent Dispatch Queue：并行队列，使用多个线程，
+
+* dispatch_queue_create:创建dispatch_queue_t，需要手动释放，默认优先级
+* dispatch_set_target_queue：变更优先级
+* dispatch_after：在指定时间后**追加**处理，有延迟
+* dispatch_group_notify:保证一组任务全部执行结束后才会执行后面的处理
+* dispatch_barrier_async：等之前的任务都处理结束才会追加该任务，等该任务处理结束之后才会执行后续操作
+* dispatch_sync：同步派发，将指定block追加到指定队列中，等待该任务处理结束，才能返回，注意死锁
+* dispatch_async：异步派发，将指定block追加到指定队列中，不等待该任务处理结束，直接返回
+* dispatch_apply：按指定的次数将指定Block同步追加到指定队列
+* dispatch_suspend/dispatch_resume:挂起/恢复指定队列，只会挂起尚未执行的任务
+* dispatch_semaphore：信号量，同步机制
+* dispatch_once：单例机制，注意死锁
+* dispatch_io
+
 16、如何使用队列来避免资源抢夺？
+
+
 
 17、数据持久化的几个方案（fmdb用没用过）
 
@@ -96,20 +240,53 @@ copy返回不可变对象，mutablecopy返回可变对象
 * nsuserdefault
 * CoreData
 * sqlite
+* NSKeyedArchiver
 
 18、说一下AppDelegate的几个方法？从后台到前台调用了哪些方法？第一次启动调用了哪些方法？从前台到后台调用了哪些方法？
 
+```objective-c
+//1.当程序第一次运行并且将要显示窗口的时候执行，在该方法中我们完成的操作
+
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
+//2.程序进入后台的时候首先执行程序将要取消活跃该方法
+
+- (void)applicationWillResignActive:(UIApplication *)application
+//3.该方法当应用程序进入后台的时候调用
+
+- (void)applicationDidEnterBackground:(UIApplication *)application
+//4.当程序进入将要前台的时候调用 当应用在后台状态，将要进行动前台运行状态时，会调用此方法。 如果应用不在后台状态，而是直接启动，则不会回调此方法。
+
+- (void)applicationWillEnterForeground:(UIApplication *)application
+//5.应用程序已经变得活跃（应用程序的运行状态）
+
+ - (void)applicationDidBecomeActive:(UIApplication *)application
+//6.当程序将要退出的时候调用，如果应用程序支持后台运行，该方法被applicationDidEnterBackground:替换
+
+- (void)applicationWillTerminate:(UIApplication *)application
+```
+
+
+
 19、NSCache优于NSDictionary的几点？
 
-
+* 系统资源将要耗尽时，可以自动删减缓存，先行删减最久未使用的对象
+* NSCache不会拷贝键，而是保留，在键不支持copy的情况下使用比较方便
+* 线程安全
+* 开发者可以操控删减内容的时机：指定对象总数和总开销
 
 20、知不知道Designated Initializer？使用它的时候有什么需要注意的问题？
 
 21、实现description方法能取到什么效果？
 
+* NSLog(@"%@", objectA);这会自动调用objectA的description方法来输出ObjectA的描述信息. 
+* description方法默认返回对象的描述信息(默认实现是返回类名和对象的内存地址) 
+* description方法是基类NSObject 所带的方法,因为其默认实现是返回类名和对象的内存地址, 这样的话,使用NSLog输出OC对象,意义就不是很大,因为我们并不关心对象的内存地址,比较关心的是对象内部的一些成变量的值。因此,会经常重写description方法,覆盖description方法的默认实现
+
 22、objc使用什么机制管理对象内存？
 
-引用计数
+* MRC(manual retain-release)手动内存管理
+* ARC(automatic reference counting)自动引用计数，引用计数为0时对象就会被释放
+* Garbage collection (垃圾回收)。但是iOS不支持垃圾回收
 
 **中级**
 
