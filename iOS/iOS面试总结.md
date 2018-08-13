@@ -127,10 +127,11 @@ copy返回不可变对象，mutablecopy返回可变对象
 
 * 伪并行，两个或多个事件在同一时间间隔发生
 
-14、线程间通信？
+14、线程通信？
 
 - 1个线程传递数据给另1个线程
 - 在1个线程中执行完特定任务后，转到另1个线程继续执行任务
+- iOS线程间的通信，实际上是各种输入源，触发Runloop去处理对应的事件
 
 （1）NSThread
 
@@ -236,36 +237,86 @@ Concurrent Dispatch Queue：并行队列，使用多个线程，
 
 17、数据持久化的几个方案（fmdb用没用过）
 
-* plist
-* nsuserdefault
-* CoreData
-* sqlite
-* NSKeyedArchiver
+* plist:通过XML文件的方式保存在Documents目录中，只能保存OC封装的数据类型(string,array,dictionary,data,number,date)
+* nsuserdefault：偏好设置，key-value的方式存取
+* NSKeyedArchiver：遵从NSCoding协议
+* Keychain :保存在沙盒外，可以在应用之间共享数据，key-value的方式存取，增删改查
+
+上述所有存储方法，都是覆盖存储。如果想要增加一条数据就必须把整个文件读出来，然后修改数据后再把整个内容覆盖写入文件。所以它们都不适合存储大量的内容。
+
+https://www.jianshu.com/p/7616cbd72845
+
+#### SQLite3
+
+
+
+#### FMDB
+
+
+
+#### CoreData
+
+
+
+#### 沙盒
+
+iOS程序默认情况下只能访问程序的目录,这个目录就是沙盒。 沙盒的目录结构如下：
+
+```
+"应用程序包"
+Documents
+Library
+    Caches
+    Preferences
+tmp
+```
+
+* 应用程序包：存放的是应用程序的源文件：资源文件和可执行文件
+
+  ```objective-c
+  NSString *path = [[NSBundle mainBundle] bundlePath];
+  ```
+
+* `Documents:`比较常用的目录，itune同步会同步这个文件夹的内容，适合存储重要的数据
+
+  ```objective-c
+  NSString *path = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+  ```
+
+* `Library/Caches`: **iTunes**不会同步此文件夹，适合存储体积大，不需要备份的非重要数据。
+
+  ```objective-c
+  NSString *path  = NSSearchPathForDirectoriesInDomains(NSCachesDirectory,NSUserDomainMask, YES).firstObject;
+  ```
+
+* `Library/Preferences`: **iTunes**同步该应用时会同步此文件夹中的内容，通常保存应用的设置信息。
+
+* `tmp`itunes不会同步，系统可能在应用没运行时就删除该目录的文件，适合存临时文件，用完就删除：
+
+  ```objective-c
+  NSString *path  = NSTemporaryDirectory();
+  ```
 
 18、说一下AppDelegate的几个方法？从后台到前台调用了哪些方法？第一次启动调用了哪些方法？从前台到后台调用了哪些方法？
 
+* 第一次启动:didFinish，didBecomeActive
+* 从前台到后台：willResignActive，didEnterBackground
+* 从后台到前台：willEnterForeground，didBecomeActive
+
 ```objective-c
 //1.当程序第一次运行并且将要显示窗口的时候执行，在该方法中我们完成的操作
-
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 //2.程序进入后台的时候首先执行程序将要取消活跃该方法
-
 - (void)applicationWillResignActive:(UIApplication *)application
 //3.该方法当应用程序进入后台的时候调用
-
 - (void)applicationDidEnterBackground:(UIApplication *)application
 //4.当程序进入将要前台的时候调用 当应用在后台状态，将要进行动前台运行状态时，会调用此方法。 如果应用不在后台状态，而是直接启动，则不会回调此方法。
-
 - (void)applicationWillEnterForeground:(UIApplication *)application
 //5.应用程序已经变得活跃（应用程序的运行状态）
-
  - (void)applicationDidBecomeActive:(UIApplication *)application
 //6.当程序将要退出的时候调用，如果应用程序支持后台运行，该方法被applicationDidEnterBackground:替换
-
 - (void)applicationWillTerminate:(UIApplication *)application
 ```
-
-
 
 19、NSCache优于NSDictionary的几点？
 
@@ -275,6 +326,27 @@ Concurrent Dispatch Queue：并行队列，使用多个线程，
 * 开发者可以操控删减内容的时机：指定对象总数和总开销
 
 20、知不知道Designated Initializer？使用它的时候有什么需要注意的问题？
+
+![avatar](https://images.cnblogs.com/cnblogs_com/smileEvday/806954/o_initializerDelegation01_2x.png)
+
+* 指定初始化方法  ：通常接收最多的初始化参数。其他initializer则调用它即可,不需要重复写相关代码。这个模式保证了所有的初始化方法都正确地初始实例变量。
+* 便利初始化方法
+
+OC规范
+
+* 子类如果有指定初始化函数，那么指定初始化函数实现时必须调用它的直接父类的指定初始化函数。
+* 如果子类有指定初始化函数，那么便利初始化函数必须调用**自己**的其它初始化函数(包括指定初始化函数以及其他的便利初始化函数)，不能调用super的初始化函数
+* 如果子类提供了指定初始化函数，那么一定要实现所有父类的指定初始化函数
+* NSCoding
+  * 如父类没有实现NSCoding协议，那么应该调用父类的指定初始化函数。
+  * 如果父类实现了NSCoing协议，那么子类的 initWithCoder: 的实现中需要调用父类的initWithCoder:方
+  * 实现NSCoding协议的时候，我们可以显示的声明 **initWithCoder:** 为指定初始化函数(一个类可以有多个指定初始化函数，比如UIViewController)即可完美解决问题，既满足了指定初始化函数的三个规则，又满足了NSCoding协议的三条原则。
+
+Swift规范
+
+* 指定初始化方法必须先初始化该类自己定义的存储属性，再使用super来调用父类的指定初始化器，跌倒过来编译器会报错。
+* 便利初始化方法必须先调用其他的初始化方法之后，再赋类的存储属性值
+* 便利初始化方法如果重载了父类的指定初始化方法，则必须使用override修饰符
 
 21、实现description方法能取到什么效果？
 
@@ -296,13 +368,22 @@ Concurrent Dispatch Queue：并行队列，使用多个线程，
 
 实质：对象
 
+![avatar](http://www.devtalking.com/postImages/block-struct.jpg)
+
+- `isa`指针：指向表明该block类型的类。
+- `flags`：按bit位表示一些block的附加信息，比如判断block类型、判断block引用计数、判断block是否需要执行辅助函数等。
+- `reserved`：保留变量，我的理解是表示block内部的变量数。
+- `invoke`：函数指针，指向具体的block实现的函数调用地址。
+- `descriptor`：block的附加描述信息，比如保留变量数、block的大小、进行`copy`或`dispose`的辅助函数指针。
+- `variables`：因为block有闭包性，所以可以访问block外部的局部变量。这些`variables`就是复制到结构体中的外部局部变量或变量的地址。
+
+
+
 类型：
 
-堆Block：
-
-栈Block：
-
-全局Block：
+- `_NSConcreteGlobalBlock`类型的block要么是空block，要么是不访问任何外部变量的block。在内存的全局区。
+- `_NSConcreteStackBlock`类型的block有闭包行为，也就是有访问外部变量，并且该block只且只有有一次执行，因为栈中的空间是可重复使用的，所以当栈中的block执行一次之后就被清除出栈了，所以无法多次使用。
+- `_NSConcreteMallocBlock`类型的block有闭包行为，并且该block需要被多次执行。当需要多次执行时，就会把该block从栈中复制到堆中，供以多次执行。
 
 2、为什么在默认情况下无法修改被block捕获的变量？ __block都做了什么？
 
@@ -324,20 +405,50 @@ B调用Block
 
 5、什么时候会报unrecognized selector错误？iOS有哪些机制来避免走到这一步？
 
+消息接收者找不到对应的@selector()方法.
+
+```objective-c
++ (BOOL)resolveInstanceMethod:(SEL)sel; / + (BOOL)resolveClassMethod:(SEL)sel;
+- (id)forwardingTargetForSelector:(SEL)aSelector;
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector;
+- (void)forwardInvocation:(NSInvocation *)anInvocation;
+```
+
 6、能否向编译后得到的类中增加实例变量？能否向运行时创建的类中添加实例变量？为什么？
+
+不能，能
+
+- 编译后的类已经注册在runtime中,类结构体中的objc_ivar_list实例变量的链表和instance_size实例变量的内存大小已经确定,runtime会调用class_setvarlayout或class_setWeaklvarLayout来处理strong weak引用.所以不能向存在的类中添加实例变量
+- 运行时创建的类是可以添加实例变量,调用class_addIvar函数.但是得在调用objc_allocateClassPair之后,objc_registerClassPair之前,原因同上
 
 7、runtime如何实现weak变量的自动置nil？
 
+runtime 对注册的类， 会进行布局，对于 weak 对象会放入一个 hash 表中。 用 weak 指向的对象内存地址作为 key，当此对象的引用计数为0的时候会 dealloc，假如 weak 指向的对象内存地址是a，那么就会以a为键， 在这个 weak 表中搜索，找到所有以a为键的 weak 对象，从而设置为 nil。
+
 8、给类添加一个属性后，在类结构体里哪些元素会发生变化？
 
-* 成员变量列表
-* 方法列表
+* `long instance_size`：实例的内存大小
+* `objc_ivar_list *ivars`: 属性列表
+* `objc_method_list **methodLists` ：属性的存取方法
 
 9、isa指针？（对象的isa，类对象的isa，元类的isa都要说）
 
 10、类方法和实例方法有什么区别？
 
+* 类方法，也称静态方法，指的是用static关键字修饰的方法。此方法属类本身的方法，不属于类的某一个实例
+* 类方法与实例无关。实例方法与实例相关
+
+使用
+
+* 如果需要访问或者修改某个实例的成员变量时，将该方法定义成实例方法。类方法正好相反，它不需要访问或者修改某个实例的成员变量
+* 类方法一般用于实现一些工具方法，比如对某个对象进行扩展，或者实现单例
+* 如果一个方法与他所在类型的实例无关，那么它就应该是静态的，决不会有人把它写成实例方法。所以所有的实例方法都与实例有关，既然与实例有关，那么创建实例就是必然的步骤，没有麻烦简单一说。实际上上你可以把所有的实例方法都写成静态的，将实例作为参数传入即可
+
 11、介绍一下分类，能用分类做什么？内部是如何实现的？它为什么会覆盖掉原来的方法？
+
+* 扩展基础类库的方法
+* 多人协作
+* 
 
 12、运行时能增加成员变量么？能增加属性么？如果能，如何增加？如果不能，为什么？
 
@@ -346,6 +457,16 @@ B调用Block
 增加属性：关联对象
 
 13、objc中向一个nil对象发送消息将会发生什么？（返回值是对象，是标量，结构体）
+
+什么都不会发生,返回值为 nil 缺省值， 缺省值
+
+14、 苹果是如何实现autoreleasepool的？https://draveness.me/autoreleasepool
+
+- 自动释放池是由 `AutoreleasePoolPage` 以双向链表的方式实现的
+- 当对象调用 `autorelease` 方法时，会将对象加入 `AutoreleasePoolPage` 的栈中
+- 调用 `AutoreleasePoolPage::pop` 方法会向栈中的对象发送 `release` 消息
+
+
 
 **高级** 
 
@@ -360,6 +481,10 @@ B调用Block
 4、SDWebImage的缓存策略？
 
 5、AFN为什么添加一条常驻线程？
+
+* AFN 的做法是把网络请求的发起和解析都放在同一个子线程中进行，但由于子线程默认不开启 runloop，它在运行完所有代码后退出线程。而网络请求是异步的，这会导致获取到请求数据时，线程已经退出，代理方法没有机会执行。因此，AFN 的做法是使用一个 runloop 来保证线程不死，能保证代理方法的执行。同时，避免每次请求都创建新的线程。
+
+- 由于NSUrlSession参考了AF的2.x的优点，自己维护了一个线程池，做Request线程的调度与管理，所以在AF3.x中，没有了常驻线程，都是用的时候run,结束的时候stop。
 
 6、KVO的使用？实现原理？（为什么要创建子类来实现）
 
