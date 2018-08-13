@@ -175,30 +175,90 @@ void heapSort(vector<int>& arr)
 
 
 
+### 桶排序
+
+
+
+### 基数排序
+
+
+
 ### 比较
 
 
 
-| 算法 | 平均  | 最好  | 最坏  | memory | 稳定性 |
-| ---- | ----- | ----- | ----- | ------ | ------ |
-| 插入 | n2    | n     | n2    | 1      | 稳定   |
-| 选择 | n2    | n2    | n2    | 1      | 稳定   |
-| 冒泡 | n2    | n2    | n2    | 1      | 稳定   |
-| 希尔 |       | nlogn |       | 1      | 不稳定 |
-| 归并 | nlogn | nlogn | nlogn | n      | 稳定   |
-| 快速 | nlogn | nlogn | n2    | logn   | 不稳定 |
-| 堆   | nlogn | nlogn | nlogn | 1      | 不稳定 |
-|      |       |       |       |        |        |
+| 算法     | 平均  | 最好  | 最坏  | memory | 稳定性 |
+| -------- | ----- | ----- | ----- | ------ | ------ |
+| 插入     | n2    | n     | n2    | 1      | 稳定   |
+| 选择     | n2    | n2    | n2    | 1      | 稳定   |
+| 冒泡     | n2    | n2    | n2    | 1      | 稳定   |
+| 希尔     |       | nlogn |       | 1      | 不稳定 |
+| 归并     | nlogn | nlogn | nlogn | n      | 稳定   |
+| 快速     | nlogn | nlogn | n2    | logn   | 不稳定 |
+| 堆       | nlogn | nlogn | nlogn | 1      | 不稳定 |
+| 桶排序   |       |       |       |        | 稳定   |
+| 基数排序 |       |       |       |        |        |
 
 
 
-# 二分查找算法
+# 二分查找算法(数字在排序数组中出现的次数)
 
-
-
-
-
-
+```c++
+class Solution {
+public:
+    int GetNumberOfK(vector<int> data ,int k) {
+        int count = (int)data.size();
+        if (count == 0 || data[0] > k || data[count -1] < k) {
+            return 0;
+        }
+        // [low,up) 左闭右开区间
+        int low = lowBound(data, k);
+        int up = upBound(data, k);
+         
+        return up-low;
+    }
+     // 找上届
+    int upBound(vector<int> data, int k) {
+        int count = (int)data.size();
+        if (count == 0 || data[count-1] <= k) {
+            return count;
+        }
+        int l = 0, r = count-1;
+        int mid;
+        while (l < r) {
+            mid = (l+r+1) / 2;
+            if (data[mid] > k) {
+                r = mid-1;
+            } else if (data[mid] == k) {
+                l = mid;
+            } else {
+                l = mid+1;
+            }
+        }
+        return r+1;
+    }
+    // 找下届
+    int lowBound(vector<int> data, int k) {
+        int count = (int)data.size();
+        if (count == 0 || data[0] > k) {
+            return -1;
+        }
+        int l = 0, r = count-1;
+        int mid;
+        while (l < r) {
+            mid = (l+r-1) / 2;
+            if (data[mid] > k) {
+                r = mid-1;
+            } else if (data[mid] == k) {
+                r = mid;
+            } else {
+                l = mid+1;
+            }
+        }
+        return l;
+    }
+};
+```
 
 # 全排列
 
@@ -320,8 +380,6 @@ public:
 
 
 
-
-
 # 无向图连通块个数
 
 ### DFS
@@ -380,6 +438,184 @@ public:
     int find(vector<int> &root, int i) {
         while (root[i] != i) i = root[i];
         return i;
+    }
+};
+```
+
+
+
+# 二叉树的非递归遍历
+
+### 前序
+
+根据前序遍历访问的顺序，优先访问根结点，然后再分别访问左孩子和右孩子。即对于任一结点，其可看做是根结点，因此可以直接访问，访问完之后，若其左孩子不为空，按相同规则访问它的左子树；当访问其左子树时，再访问它的右子树。因此其处理过程如下：
+
+​     对于任一结点P：
+
+​     1)访问结点P，并将结点P入栈;
+
+​     2)判断结点P的左孩子是否为空，若为空，则取栈顶结点并进行出栈操作，并将栈顶结点的右孩子置为当前的结点P，循环至1);若不为空，则将P的左孩子置为当前的结点P;
+
+​     3)直到P为NULL并且栈为空，则遍历结束。
+
+```c++
+void preOrder(TreeNode* pRoot)
+{
+    stack<TreeNode *> tmp;
+    TreeNode *node = pRoot;
+    while (node != nullptr || !tmp.empty()) {
+        while (node!=nullptr) {
+            tmp.push(node);
+            cout<<node->val<<endl;
+            node = node->left;
+        }
+        
+        if (!tmp.empty()) {
+            node = tmp.top();
+            tmp.pop();
+            node = node->right;
+        }
+    }
+}
+```
+
+
+
+### 中序
+
+```c++
+void inOrder(TreeNode* pRoot)
+{
+    stack<TreeNode *> tmp;
+    TreeNode *node = pRoot;
+    while (node != nullptr || !tmp.empty()) {
+        while (node!=nullptr) {
+            tmp.push(node);
+            node = node->left;
+        }
+        
+        if (!tmp.empty()) {
+            node = tmp.top();
+            tmp.pop();
+            cout<<node->val<<endl;
+            node = node->right;
+        }
+    }
+}
+```
+
+
+
+### 后序
+
+思路1
+
+对于任一结点P，将其入栈，然后沿其左子树一直往下搜索，直到搜索到没有左孩子的结点，此时该结点出现在栈顶，但是此时不能将其出栈并访问，因此其右孩子还为被访问。所以接下来按照相同的规则对其右子树进行相同的处理，当访问完其右孩子时，该结点又出现在栈顶，此时可以将其出栈并访问。这样就保证了正确的访问顺序。可以看出，在这个过程中，每个结点都两次出现在栈顶，只有在第二次出现在栈顶时，才能访问它。因此需要多设置一个变量标识该结点是否是第一次出现在栈顶
+
+```c++
+void postOrder(TreeNode* pRoot)
+{
+    stack<TreeNode *> s;
+    TreeNode *p = pRoot;
+    TreeNode *temp;
+    map<TreeNode*, bool> flags;
+    while(p!=NULL||!s.empty()) {
+        while(p!=NULL) {
+            s.push(p);
+            flags[p] = true;
+            p=p->left;
+        }
+        if(!s.empty()) {
+            temp=s.top();
+            s.pop();
+            if(flags[temp] == true)     //表示是第一次出现在栈顶
+            {
+                flags[temp]=false;
+                s.push(temp);
+                p=temp->right;
+            } else {
+                cout<<temp->val<<endl;
+                p=NULL;
+            }
+        }
+    }
+}
+
+```
+
+
+
+思路2
+
+要保证根结点在左孩子和右孩子访问之后才能访问，因此对于任一结点P，先将其入栈。如果P不存在左孩子和右孩子，则可以直接访问它；或者P存在左孩子或者右孩子，但是其左孩子和右孩子都已被访问过了，则同样可以直接访问该结点。若非上述两种情况，则将P的右孩子和左孩子依次入栈，这样就保证了每次取栈顶元素的时候，左孩子在右孩子前面被访问，左孩子和右孩子都在根结点前面被访问。
+
+```c++
+void postOrder(TreeNode* pRoot)
+{
+    stack<TreeNode *> tmp;
+    if (pRoot != nullptr) {
+        tmp.push(pRoot);
+    }
+    TreeNode *pre = nullptr;
+    while (!tmp.empty()) {
+        TreeNode *p = tmp.top();
+        if ((p->left == nullptr && p->right == nullptr) || (pre != nullptr && (pre == p->left || pre == p->right))) {
+            cout<<p->val<<endl;
+            pre = p;
+            tmp.pop();
+        } else {
+            if (p->right != nullptr) {
+                tmp.push(p->right);
+            }
+            if (p->left != nullptr) {
+                tmp.push(p->left);
+            }
+        }
+    }
+}
+```
+
+
+
+
+
+# 滑动窗口大小
+
+用一个两端开口的队列，保存有可能是滑动窗口最大值的下标。在存入一个数字的下标之前，首先判断队列里已有数字是否小于待存入的数字，如果小于那么这些数字已经不可能是滑动窗口的最大值，因为依次从尾部删除。同时，如果队列头部的数字已经从窗口里滑出，那么滑出的数字下边也要从队列的头部删除。
+
+```c++
+class Solution {
+public:
+    vector<int> maxInWindows(const vector<int>& num, unsigned int size)
+    {
+        vector<int> res;
+        int len = (int)num.size();
+        if (len <= 0 || size <= 0 || len < size) {
+            return res;
+        }
+        if (len == 1) {
+            res.push_back(num[0]);
+            return res;
+        }
+        deque<int> win;
+        for (int i = 0; i < size; i++) {
+            while (!win.empty() && num[i] >= num[win.back()]) {
+                win.pop_back();
+            }
+            win.push_back(i);
+        }
+        for (int i = size; i < len; i++) {
+            res.push_back(num[win.front()]);
+            while (!win.empty() && num[i] >= num[win.back()]) {
+                win.pop_back();
+            }
+            if (!win.empty() && win.front() <= (i-size)) {
+                win.pop_front();
+            }
+            win.push_back(i);
+        }
+        res.push_back(num[win.front()]);
+        return res;
     }
 };
 ```
