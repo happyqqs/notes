@@ -499,7 +499,91 @@ runtime 对注册的类， 会进行布局，对于 weak 对象会放入一个 h
 
 7、KVC的使用？实现原理？（KVC拿到key以后，是如何赋值的？知不知道集合操作符，能不能访问私有属性，能不能直接访问_ivar）
 
-KVC的定义都是对`NSObject`的扩展来实现的(NSKeyValueCoding扩展)
+可以允许开发者通过Key名直接访问对象的属性，或者给对象的属性赋值。而不需要调用明确的存取方法。这样就可以在运行时动态地访问和修改对象的属性。而不是在编译时确定，这也是iOS开发中的黑魔法之一。
+
+KVC的定义都是对NSObject的扩展来实现的，Objective-C中有个显式的NSKeyValueCoding类别名，所以对于所有继承了NSObject的类型，都能使用KVC(一些纯Swift类和结构体是不支持KVC的，因为没有继承NSObject)
+
+```objective-c
+- (nullable id)valueForKey:(NSString *)key;                          //直接通过Key来取值
+
+- (void)setValue:(nullable id)value forKey:(NSString *)key;          //通过Key来设值
+
+- (nullable id)valueForKeyPath:(NSString *)keyPath;                  //通过KeyPath来取值
+
+- (void)setValue:(nullable id)value forKeyPath:(NSString *)keyPath;  //通过KeyPath来设值
+
++ (BOOL)accessInstanceVariablesDirectly;
+//默认返回YES，表示如果没有找到Set<Key>方法的话，会按照_key，_iskey，key，iskey的顺序搜索成员，设置成NO就不这样搜索
+
+- (BOOL)validateValue:(inout id __nullable * __nonnull)ioValue forKey:(NSString *)inKey error:(out NSError **)outError;
+//KVC提供属性值正确性�验证的API，它可以用来检查set的值是否正确、为不正确的值做一个替换值或者拒绝设置新值并返回错误原因。
+
+- (NSMutableArray *)mutableArrayValueForKey:(NSString *)key;
+//这是集合操作的API，里面还有一系列这样的API，如果属性是一个NSMutableArray，那么可以用这个方法来返回。
+
+- (nullable id)valueForUndefinedKey:(NSString *)key;
+//如果Key不存在，且没有KVC无法搜索到任何和Key有关的字段或者属性，则会调用这个方法，默认是抛出异常。
+
+- (void)setValue:(nullable id)value forUndefinedKey:(NSString *)key;
+//和上一个方法一样，但这个方法是设值。
+
+- (void)setNilValueForKey:(NSString *)key;
+//如果你在SetValue方法时面给Value传nil，则会调用这个方法
+
+- (NSDictionary<NSString *, id> *)dictionaryWithValuesForKeys:(NSArray<NSString *> *)keys;
+//输入一组key,返回该组key对应的Value，再转成字典返回，用于将Model转到字典。
+
+```
+
+同时苹果对一些容器类比如NSArray或者NSSet等，KVC有着特殊的实现。
+
+有序集合对应方法如下：
+
+```objective-c
+-countOf<Key>//必须实现，对应于NSArray的基本方法count:2  -objectIn<Key>AtIndex:
+
+-<key>AtIndexes://这两个必须实现一个，对应于 NSArray 的方法 objectAtIndex: 和 objectsAtIndexes:
+
+-get<Key>:range://不是必须实现的，但实现后可以提高性能，其对应于 NSArray 方法 getObjects:range:
+
+-insertObject:in<Key>AtIndex:
+
+-insert<Key>:atIndexes://两个必须实现一个，类似于 NSMutableArray 的方法 insertObject:atIndex: 和 insertObjects:atIndexes:
+
+-removeObjectFrom<Key>AtIndex:
+
+-remove<Key>AtIndexes://两个必须实现一个，类似于 NSMutableArray 的方法 removeObjectAtIndex: 和 removeObjectsAtIndexes:
+
+-replaceObjectIn<Key>AtIndex:withObject:
+
+-replace<Key>AtIndexes:with<Key>://可选的，如果在此类操作上有性能问题，就需要考虑实现之
+```
+
+无序集合
+
+```objective-c
+-countOf<Key>//必须实现，对应于NSArray的基本方法count:
+
+-objectIn<Key>AtIndex:
+
+-<key>AtIndexes://这两个必须实现一个，对应于 NSArray 的方法 objectAtIndex: 和 objectsAtIndexes:
+
+-get<Key>:range://不是必须实现的，但实现后可以提高性能，其对应于 NSArray 方法 getObjects:range:
+
+-insertObject:in<Key>AtIndex:
+
+-insert<Key>:atIndexes://两个必须实现一个，类似于 NSMutableArray 的方法 insertObject:atIndex: 和 insertObjects:atIndexes:
+
+-removeObjectFrom<Key>AtIndex:
+
+-remove<Key>AtIndexes://两个必须实现一个，类似于 NSMutableArray 的方法 removeObjectAtIndex: 和 removeObjectsAtIndexes:
+
+-replaceObjectIn<Key>AtIndex:withObject:
+
+-replace<Key>AtIndexes:with<Key>://这两个都是可选的，如果在此类操作上有性能问题，就需要考虑实现之
+```
+
+
 
 #### 设值
 
@@ -517,9 +601,9 @@ KVC的定义都是对`NSObject`的扩展来实现的(NSKeyValueCoding扩展)
 
 当调用`valueForKey：@”name“`的代码时，KVC对`key`的搜索方式不同于`setValue：属性值 forKey：@”name“`，其搜索方式如下：
 
-- 首先按`get<Key>`,`<key>`,`is<Key>`的顺序方法查找`getter`方法，找到的话会直接调用。如果是`BOOL`或者`Int`等值类型， 会将其包装成一个`NSNumber`对象。
-- 如果上面的`getter`没有找到，KVC则会查找`countOf<Key>`,`objectIn<Key>AtIndex`或`<Key>AtIndexes`格式的方法。如果`countOf<Key>`方法和另外两个方法中的一个被找到，那么就会返回一个可以响应`NSArray`所�有方法的代理集合(它是`NSKeyValueArray`，是`NSArray`的子类)，调用这个代理集合的方法，或者说给这个代理集合发送属于`NSArray`的方法，就会以`countOf<Key>`,`objectIn<Key>AtIndex`�或`<Key>AtIndexes`这几个方法组合的形式调用。还有一个可选的`get<Key>:range:`方法。所以你想重新定义KVC的一些功能，你可以添加这些方法，需要注意的是你的方法名要符合KVC的标准命名方法，包括方法签名。
-- 如果上面的方法没有找到，那么会同时查找`countOf<Key>`，`enumeratorOf<Key>`,`memberOf<Key>`格式的方法。如果这三个方法都找到，那么就返回一个可以响应`NSSet`所的方法的代理集合，和上面一样，给这个代理集合发`NSSet`的消息，就会以`countOf<Key>`，`enumeratorOf<Key>`,`memberOf<Key>`组合的形式调用。
+- 首先按name,,isName的顺序方法查找getter方法，找到的话会直接调用。如果是BOOL或者Int等值类型， 会将其包装成一个NSNumber对象。
+- 如果上面的getter没有找到，KVC则会查找countOf,objectInAtIndex或AtIndexes格式的方法。如果countOf方法和另外两个方法中的一个被找到，那么就会返回一个可以响应NSArray所有方法的代理集合(它是NSKeyValueArray，是NSArray的子类)，调用这个代理集合的方法，或者说给这个代理集合发送属于NSArray的方法，就会以countOf,objectInAtIndex或AtIndexes这几个方法组合的形式调用。还有一个可选的get:range:方法。所以你想重新定义KVC的一些功能，你可以添加这些方法，需要注意的是你的方法名要符合KVC的标准命名方法，包括方法签名。
+- 如果上面的方法没有找到，那么会同时查找countOf，enumeratorOf,memberOf格式的方法。如果这三个方法都找到，那么就返回一个可以响应NSSet所的方法的代理集合，和上面一样，给这个代理集合发NSSet的消息，就会以countOf，enumeratorOf,memberOf组合的形式调用。
 - 如果还没有找到，再检查类方法`+ (BOOL)accessInstanceVariablesDirectly`,如果返回YES(默认行为)，那么和先前的设值一样，会按`_<key>,_is<Key>,<key>,is<Key>`的顺序搜索成员变量名，这里不推荐这么做，因为这样直接访问实例变量破坏了封装性，使代码更脆弱。如果重写了类方法`+ (BOOL)accessInstanceVariablesDirectly`返回NO的话，那么会直接调用`valueForUndefinedKey:` 
 - 还没有找到的话，调用`valueForUndefinedKey:`
 
