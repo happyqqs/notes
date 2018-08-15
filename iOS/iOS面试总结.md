@@ -472,7 +472,13 @@ runtime 对注册的类， 会进行布局，对于 weak 对象会放入一个 h
 
 1、UITableview的优化方法（缓存高度，异步绘制，减少层级，hide，避免离屏渲染）
 
-
+* cell重用
+* 缓存高度
+* 在heightForRowAtIndexPath:中尽量不使用cellForRowAtIndexPath:，如果你需要用到它，只用一次然后缓存结果
+* 尽量少用addView给Cell动态添加View，可以初始化时就添加，然后通过hide来控制是否显示
+* 尽量少用或不用透明图层
+* 复杂界面手写代码实现
+* 图片资源不要缩放
 
 2、有没有用过运行时，用它都能做什么？（交换方法，创建类，给新创建的类增加方法，改变isa指针）
 
@@ -488,7 +494,36 @@ runtime 对注册的类， 会进行布局，对于 weak 对象会放入一个 h
 
 6、KVO的使用？实现原理？（为什么要创建子类来实现）
 
+*  isa-swizing，隐式创建子类，让实例对象的 isa 指针指向该子类。
+* 重写该子类的 setKey: 方法实现在设置值之前和之后通知观察者的功能
+
 7、KVC的使用？实现原理？（KVC拿到key以后，是如何赋值的？知不知道集合操作符，能不能访问私有属性，能不能直接访问_ivar）
+
+KVC的定义都是对`NSObject`的扩展来实现的(NSKeyValueCoding扩展)
+
+#### 设值
+
+当调用`setValue：属性值 forKey：@”name“`的代码时，底层的执行机制如下：
+
+* 程序优先调用`setName:属性值`方法，代码通过`setter`方法完成设置。
+* 如果没有找到`setName：`方法,再调用`setIsName:属性值`方法
+* 如果仍然没找到，KVC机制会检查`+ (BOOL)accessInstanceVariablesDirectly`方法
+  * 如果返回NO，跳到最后一步，可以禁止直接访问实例变量
+  * 如果返回YES，继续查找实例变量
+* 按照 `_name,` `_isName`, `name`,`isName` 的顺序查找实例变量。
+* 如果上面列出的方法或者成员变量都不存在，系统将会执行该对象的`setValue：forUndefinedKey：`方法，默认是抛出异常。
+
+#### 取值
+
+当调用`valueForKey：@”name“`的代码时，KVC对`key`的搜索方式不同于`setValue：属性值 forKey：@”name“`，其搜索方式如下：
+
+- 首先按`get<Key>`,`<key>`,`is<Key>`的顺序方法查找`getter`方法，找到的话会直接调用。如果是`BOOL`或者`Int`等值类型， 会将其包装成一个`NSNumber`对象。
+- 如果上面的`getter`没有找到，KVC则会查找`countOf<Key>`,`objectIn<Key>AtIndex`或`<Key>AtIndexes`格式的方法。如果`countOf<Key>`方法和另外两个方法中的一个被找到，那么就会返回一个可以响应`NSArray`所�有方法的代理集合(它是`NSKeyValueArray`，是`NSArray`的子类)，调用这个代理集合的方法，或者说给这个代理集合发送属于`NSArray`的方法，就会以`countOf<Key>`,`objectIn<Key>AtIndex`�或`<Key>AtIndexes`这几个方法组合的形式调用。还有一个可选的`get<Key>:range:`方法。所以你想重新定义KVC的一些功能，你可以添加这些方法，需要注意的是你的方法名要符合KVC的标准命名方法，包括方法签名。
+- 如果上面的方法没有找到，那么会同时查找`countOf<Key>`，`enumeratorOf<Key>`,`memberOf<Key>`格式的方法。如果这三个方法都找到，那么就返回一个可以响应`NSSet`所的方法的代理集合，和上面一样，给这个代理集合发`NSSet`的消息，就会以`countOf<Key>`，`enumeratorOf<Key>`,`memberOf<Key>`组合的形式调用。
+- 如果还没有找到，再检查类方法`+ (BOOL)accessInstanceVariablesDirectly`,如果返回YES(默认行为)，那么和先前的设值一样，会按`_<key>,_is<Key>,<key>,is<Key>`的顺序搜索成员变量名，这里不推荐这么做，因为这样直接访问实例变量破坏了封装性，使代码更脆弱。如果重写了类方法`+ (BOOL)accessInstanceVariablesDirectly`返回NO的话，那么会直接调用`valueForUndefinedKey:` 
+- 还没有找到的话，调用`valueForUndefinedKey:`
+
+
 
 **项目经验** 
 
