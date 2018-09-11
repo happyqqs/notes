@@ -34,6 +34,8 @@ Objective-C 可以通过Runtime 这个运行时机制，在运行时动态的添
 
 因为，子类有可能会覆写set方法，在特殊的场景下抛异常，而基类的默认初始化方法可能会设置成比较通用的值，这是如果用set方法来设值就会调用子类的设置方法而抛出异常
 
+
+
 5、属性的默认关键字是什么？
 
 atomic、strong、readwrite
@@ -447,7 +449,7 @@ runtime 对注册的类， 会进行布局，对于 weak 对象会放入一个 h
 11、介绍一下分类，能用分类做什么？内部是如何实现的？它为什么会覆盖掉原来的方法？
 
 * 扩展基础类库的方法
-* 多人协作
+* 多人协作，将类的实现代码分散到便于管理的多个分类中
 * 
 
 12、运行时能增加成员变量么？能增加属性么？如果能，如何增加？如果不能，为什么？
@@ -460,7 +462,11 @@ runtime 对注册的类， 会进行布局，对于 weak 对象会放入一个 h
 
 什么都不会发生,返回值为 nil 缺省值， 缺省值
 
-14、 苹果是如何实现autoreleasepool的？https://draveness.me/autoreleasepool
+14、 autoreleasepool
+
+作用：避免它立刻释放(如你从一个方法返回一个对象时).正常情况下,我们不需要创建自己的自动释放池块,但也有一些情况下,创建自动释放池是非常明智的(子线程开启新的任务,for循环生成大量对象的时候).autorelease与runloopautorelease本质上就是延迟调用release,实际上autorelease对象是在当前的runloop迭代结束时释放的
+
+实现：https://draveness.me/autoreleasepool
 
 - 自动释放池是由 `AutoreleasePoolPage` 以双向链表的方式实现的
 - 当对象调用 `autorelease` 方法时，会将对象加入 `AutoreleasePoolPage` 的栈中
@@ -630,3 +636,158 @@ KVC的定义都是对NSObject的扩展来实现的，Objective-C中有个显式�
 5、平常看博客么？有没有自己写过？（如果写，有哪些收获？如果没有写，问一下不写的原因）
 
 6、有关技术类的问题可以在评论区留言，我重点说一下这轮面试的心得和体会。
+
+
+
+
+
+### 百度
+
+#### 一面
+
+1. UIButton 继承链
+
+   UIControl ->UIView ->UIResponder ->NSObject 
+
+2. 同步、异步、串行、并行的区别
+
+3. 单例 在什么时候使用，使用时的注意事项
+
+   适用场景：只能有一个实例对象，内存开销小，职责简单
+
+   注意事项：
+
+   * 线程安全：
+   * 只用来保存全局的状态，永久驻留内存，
+   * 容易造成单例职责过重
+
+4. Block捕获的对象什么情况下会被提前释放
+
+5. Instrument性能优化的例子
+
+   
+
+6. AFNetWorking AFHTTPSessionManager manager方法内存泄漏的原因
+
+   AFHTTPSessionManager继承于AFURLSessionManager，AFURLSessionManager有个属性session，session类型是NSURLSession，调用NSURLSession进行请求后，等请求完毕后调用session的finishTasksAndInvalidate方法，或者调用取消session的invalidateAndCancel方法，再或者将session属性置成nil，这样AFURLSessionManager就能正常释放，这样就不需要将AFHTTPSessionManager写成单例来使用了。NSURLSession将代理属性delegate强引用了，所以NSURLSession影响了其delegate的释放，调用其中的一个invalidate方法时，就会将其delegate引用计数减一，这样其delegate就能正常释放了，这里的delegate就是AFURLSessionManager。
+
+### 考拉
+
+1. 用户态、内核态
+
+2. 动画过程中获取frame，三个树
+
+   三个树：视图层级与图层树、呈现树、渲染树
+
+3. 调试工具、分析卡顿
+
+4. https中间人，Charles https抓包过程
+
+   https：全称Hyper Text Transfer Protocol over Secure Socket Layer，
+
+   SSL/TLS：安全套接字协议， 作用在 HTTP 协议之下，对于上层应用来说，原来的发送接收数据流程不变，这就很好地兼容了老的 HTTP 协议，这也是软件开发中分层实现的体现。作用：安全地协商出一份对称加密的会话密钥
+
+   SSL/TLS握手过程：
+
+   Client Hello：客户端向服务端发送Client Hello消息
+
+5. 离屏渲染
+
+6. 转发 category 优缺点
+
+7. autolayout
+
+8. 符号重复，pod组织
+
+9. 类簇
+
+10. bridge桥接
+
+11. nstimer循环引用
+
+    
+
+12. http1.0、1.1、2.0
+
+    http1.0
+
+    http1.1
+
+    * 默认支持长连接
+    * 支持只发送header信息（不带任何body信息），如果服务器认为客户端有权限请求服务器，则返回100，否则返回401。客户端收到100才会把body发送到服务器
+    * 支持只传送内容的一部分，断电续传的基础
+    * host域，web server上的多个虚拟站点可以共享同一个ip和端口
+
+    http2.0
+
+    * 服务端推送，可以双向通信
+    * 多路复用：
+    * 压缩HTTP头
+    * 对请求划分优先级
+
+13. 存储过程
+
+14. 锁的性能
+
+15. xml和json的优缺点
+
+    配置文件用xml，传输数据用json
+
+    逐步解析用xml（边传输边解析），整体解析用json
+
+    大规模数据传输用xml，小规模用json
+
+    XML（Extensible Markup Language）：扩展标记语言
+
+    优点
+
+    比较通用
+
+    缺点：
+
+    解析速度慢（需要考虑父子节点之间的关系）、编码比较复杂
+
+    json（JavaScript Object Notation）：轻量级数据交换，良好的可读和便于快速编写的特性，可以在不同平台间进行数据交换。JSON采用兼容性很高的文本格式，同时也具备类似于C语言体系的行为。
+
+    优点：
+
+    解析速度快、编码简单
+
+    缺点：
+
+    还在推广的初级阶段、对数据的描述性差
+
+16. 
+
+17. cookie 详细
+
+18. 
+
+
+
+### 知乎
+
+1. swift optional，底层如何实现
+2. oc 与 swift比较
+3. MVVM
+4. iOS推送
+5. swift为什么没有++i
+6. 设计一个图片下载模块
+7. WKWebView拦截请求
+
+
+
+### 虎牙
+
+1. cocoapods，怎么管理依赖的
+
+   * 它是将所有的依赖库都放到另一个名为 Pods 项目中
+   * Pods 项目最终会编译成一个名为 libPods.a 的文件，主项目只需要依赖这个 .a 文件即可。这样，依赖库源码管理工作都从主项目移到了 Pods 项目中。
+   * 对于资源文件，CocoaPods 提供了一个名为 Pods-resources.sh 的 bash 脚本，该脚本在每次项目编译的时候都会执行，将第三方库的各种资源文件复制到目标目录中。
+   * CocoaPods 通过一个名为 Pods.xcconfig 的文件来在编译时设置所有的依赖和参数。
+
+    
+
+    
+
+2. autoreleasepool
